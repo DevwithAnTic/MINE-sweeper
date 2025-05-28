@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MINE-sweeper</title>
+  <!-- Pixel-style font -->
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+  <style>
+    /* Global Reset & Body Styling */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: url('https://minecraft.wiki/images/Plains.png') center/cover no-repeat;
+      font-family: 'Press Start 2P', cursive;
+      color: #eee;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px;
+      user-select: none;
+      min-height: 100vh; /* Ensure the background covers the full viewport height */
+    }
+    h1 {
+      padding-bottom: 50px;
+      font-size: 2.2em;
+      text-shadow: 3px 3px #111;
+      margin-bottom: 20px;
+    }
+
+    /* Status Panel */
+    #status {
+      display: flex;
+      justify-content: space-between;
+      width: 420px;
+      margin-bottom: 16px;
+    }
+    #status div {
+      background: #3a2d1b;
+      padding: 8px 12px;
+      border: 2px solid #5a3d0c;
+      border-radius: 4px;
+      box-shadow: 2px 2px #111;
+      font-size: 0.9em;
+    }
+
+    /* Board Container */
+    #board-container {
+      background: url('https://minecraft.wiki/images/BlockSprite_planks-oak.png') center/cover;
+      padding: 12px;
+      border: 8px solid #5a3d0c;
+      border-radius: 10px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.9);
+    }
+
+    /* Grid */
+    #board {
+      display: grid;
+      grid-template: repeat(9, 44px) / repeat(9, 44px);
+      gap: 4px;
+    }
+
+    /* Cell Base */
+    .cell {
+      position: relative;
+      width: 44px;
+      height: 44px;
+      background: url('https://minecraft.wiki/images/BlockSprite_dirt.png') center/cover;
+      cursor: pointer;
+      border: 2px solid #3a2d1b;
+      border-radius: 6px;
+      transition: transform 0.1s, box-shadow 0.2s;
+      box-shadow: inset 0 0 3px rgba(0,0,0,0.7);
+    }
+    .cell:hover { box-shadow: inset 0 0 5px rgba(255,255,255,0.3); }
+    .cell:active { transform: scale(0.9); box-shadow: inset 0 0 8px rgba(0,0,0,0.9); }
+
+    /* Revealed Variations */
+    .cell.revealed {
+      cursor: default;
+      border: 2px solid #444;
+      background-color: #666;
+      box-shadow: inset 0 0 6px rgba(0,0,0,0.8);
+    }
+    .cell.revealed[data-texture='stone'] { background: url('https://minecraft.wiki/images/BlockSprite_stone.png') center/cover; }
+    .cell.revealed[data-texture='coal'] { background: url('https://minecraft.wiki/images/BlockSprite_coal-ore.png') center/cover; }
+    .cell.revealed[data-texture='iron'] { background: url('https://minecraft.wiki/images/BlockSprite_iron-ore.png') center/cover; }
+    .cell.revealed[data-texture='gold'] { background: url('https://minecraft.wiki/images/BlockSprite_gold-ore.png') center/cover; }
+    .cell.revealed[data-texture='redstone'] { background: url('https://minecraft.wiki/images/BlockSprite_redstone-ore.png') center/cover; }
+    .cell.revealed.bomb { background: url('https://minecraft.wiki/images/BlockSprite_tnt.png') center/cover; }
+
+    /* Flag Overlay */
+    .cell.flagged::after {
+      content: '';
+      position: absolute;
+      width: 32px;
+      height: 32px;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: url('https://minecraft.wiki/images/EntitySprite_creeper.png') center/contain no-repeat;
+      pointer-events: none;
+      animation: bounce 1s infinite;
+    }
+    @keyframes bounce {
+      0%,100% { transform: translate(-50%, -50%) translateY(0); }
+      50% { transform: translate(-50%, -50%) translateY(-4px); }
+    }
+
+    @keyframes bounce {
+      0%,100% { transform: translate(-50%,-50%) translateY(0); }
+      50% { transform: translate(-50%,-50%) translateY(-4px); }
+    }
+
+    /* Number Styling */
+    .cell span {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%,-50%);
+      font-size: 20px;
+      color: #fff;
+      text-shadow: 2px 2px #111;
+    }
+
+    /* Controls & Reset */
+    #controls { margin-top: 20px; }
+    button {
+      font-family: 'Press Start 2P', cursive;
+      background: #3a2d1b;
+      color: #eee;
+      border: 2px solid #5a3d0c;
+      padding: 14px 28px;
+      cursor: pointer;
+      border-radius: 6px;
+      box-shadow: 3px 3px #111;
+      transition: background 0.2s, transform 0.1s;
+    }
+    button:hover { background: #5a3d0c; }
+    button:active { transform: scale(0.95); }
+
+    /* Confetti Animation */
+    @keyframes fall {
+      0% {
+        transform: translateY(-100vh) rotate(0deg);
+      }
+      100% {
+        transform: translateY(100vh) rotate(360deg);
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>MINE-sweeper</h1>
+  <div id="status">
+    <div id="mines">Mines: <span id="mineCount">15</span></div>
+    <div id="timer">Time: <span id="timeCount">0</span>s</div>
+  </div>
+  <div id="board-container">
+    <div id="board"></div>
+  </div>
+  <div id="controls">
+    <button id="resetBtn">Reset</button>
+  </div>
+  <script>
+    const rows = 9, cols = 9, bombCount = 10;
+    let board=[], gameOver=false, mineCount=bombCount, timeCount=0, timerInterval;
+    const textures=['stone','stone','stone','stone','coal','iron','gold','redstone'];
+
+    function startTimer() {
+      if (timerInterval) return; // Prevent multiple intervals
+      timerInterval = setInterval(() => {
+        timeCount++;
+        document.getElementById('timeCount').textContent = timeCount;
+      }, 1000);
+    }
+
+    function stopTimer() {
+      clearInterval(timerInterval);
+      timerInterval = null; // Reset the interval
+    }
+
+    function getRandomTexture(){ return textures[Math.floor(Math.random()*textures.length)]; }
+
+    function init(){
+      board=[]; gameOver=false; mineCount=bombCount; timeCount=0;
+      stopTimer(); // Ensure timer is stopped before resetting
+      document.getElementById('mineCount').textContent=mineCount;
+      document.getElementById('timeCount').textContent=timeCount;
+      document.getElementById('board').innerHTML='';
+      generateBoard(); plantBombs(); calculateNumbers(); renderBoard();
+    }
+
+    function generateBoard(){ for(let r=0;r<rows;r++){ board[r]=[]; for(let c=0;c<cols;c++){ board[r][c]={bomb:false,count:0,revealed:false,flagged:false,texture:getRandomTexture()}; } } }
+    function plantBombs() {
+      let placed = 0;
+      const centerRow = Math.floor(rows / 2);
+      const centerCol = Math.floor(cols / 2);
+
+      while (placed < bombCount) {
+        const r = Math.floor(Math.random() * rows);
+        const c = Math.floor(Math.random() * cols);
+
+        // Ensure the center cell is not a bomb and avoid placing bombs on already bombed cells
+        if (!board[r][c].bomb && !(r === centerRow && c === centerCol)) {
+          board[r][c].bomb = true;
+          placed++;
+        }
+      }
+    }
+    function calculateNumbers() {
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          if (board[r][c].bomb) continue;
+          let cnt = 0;
+          for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+              const nr = r + dr, nc = c + dc;
+              if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && board[nr][nc].bomb) cnt++;
+            }
+          }
+          board[r][c].count = cnt;
+        }
+      }
+
+      // Assign ores only to cells with no numbers
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          if (board[r][c].count === 0 && !board[r][c].bomb) {
+            board[r][c].texture = getRandomTexture();
+          } else {
+            board[r][c].texture = 'stone'; // Default texture for numbered cells
+          }
+        }
+      }
+    }
+
+    function renderBoard(){ const container=document.getElementById('board'); for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){ const div=document.createElement('div'); div.className='cell'; div.dataset.r=r; div.dataset.c=c; div.dataset.texture=board[r][c].texture; div.addEventListener('click',onCellClick); div.addEventListener('contextmenu',onCellRightClick); container.appendChild(div); } }
+
+    function updateCell(r, c) {
+      const cellObj = board[r][c];
+      const el = document.querySelector(`.cell[data-r='${r}'][data-c='${c}']`);
+      el.classList.toggle('revealed', cellObj.revealed);
+      el.classList.toggle('bomb', cellObj.bomb && cellObj.revealed);
+      el.classList.toggle('flagged', cellObj.flagged);
+      el.innerHTML = '';
+
+      if (cellObj.flagged && !cellObj.revealed) {
+        mineCount = Math.max(0, mineCount - 1); // Decrease only when flagged
+      } else if (!cellObj.flagged && !cellObj.revealed) {
+        mineCount = Math.min(bombCount, mineCount); // Ensure it doesn't exceed bombCount
+      }
+
+      document.getElementById('mineCount').textContent = mineCount;
+
+      if (cellObj.revealed && !cellObj.bomb && cellObj.count > 0) {
+        const span = document.createElement('span');
+        span.textContent = cellObj.count;
+        el.appendChild(span);
+      }
+    }
+
+    function revealCell(r,c){ if(gameOver) return; const cellObj=board[r][c]; if(cellObj.revealed||cellObj.flagged) return; if(timeCount===0) startTimer(); cellObj.revealed=true; updateCell(r,c); if(cellObj.bomb){ gameOver=true; revealAll(); stopTimer(); setTimeout(()=>alert('Game Over!'),200); return; } if(cellObj.count===0) for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++){ const nr=r+dr,nc=c+dc; if(nr>=0&&nr<rows&&nc>=0&&nc<cols){ const neighbor=board[nr][nc]; if(neighbor.flagged&&!neighbor.bomb){ neighbor.flagged=false; mineCount++; document.getElementById('mineCount').textContent=mineCount; } revealCell(nr,nc); } } checkWin(); }
+
+    function revealAll(){ for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){ board[r][c].revealed=true; updateCell(r,c); } }
+
+    function onCellClick(e){ const r=+e.currentTarget.dataset.r, c=+e.currentTarget.dataset.c; revealCell(r,c); }
+    function onCellRightClick(e){ e.preventDefault(); const r=+e.currentTarget.dataset.r, c=+e.currentTarget.dataset.c; const cell=board[r][c]; if(gameOver||cell.revealed) return; cell.flagged=!cell.flagged; updateCell(r,c); }
+
+    function checkWin() {
+      if (board.flat().every(cell => cell.bomb ? cell.flagged : cell.revealed)) {
+        gameOver = true;
+        stopTimer();
+        setTimeout(() => {
+          alert('You Won!');
+          confettiEffect(); // Trigger confetti effect
+        }, 200);
+      }
+    }
+
+    function confettiEffect() {
+      const confettiContainer = document.createElement('div');
+      confettiContainer.style.position = 'fixed';
+      confettiContainer.style.top = '0';
+      confettiContainer.style.left = '0';
+      confettiContainer.style.width = '100%';
+      confettiContainer.style.height = '100%';
+      confettiContainer.style.pointerEvents = 'none';
+      confettiContainer.style.zIndex = '1000';
+      document.body.appendChild(confettiContainer);
+
+      for (let i = 0; i < 100; i++) {
+        const confetti = document.createElement('div');
+        confetti.style.position = 'absolute';
+        confetti.style.width = '10px';
+        confetti.style.height = '10px';
+        confetti.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 50%)`;
+        confetti.style.top = `${Math.random() * 100}%`;
+        confetti.style.left = `${Math.random() * 100}%`;
+        confetti.style.animation = `fall ${Math.random() * 3 + 2}s linear infinite`;
+        confetti.style.opacity = '0.8';
+        confettiContainer.appendChild(confetti);
+      }
+
+      setTimeout(() => {
+        document.body.removeChild(confettiContainer);
+      }, 5000);
+    }
+
+    document.getElementById('resetBtn').addEventListener('click',init);
+    init();
+  </script>
+</body>
+</html>
