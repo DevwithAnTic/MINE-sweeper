@@ -146,6 +146,57 @@
         transform: translateY(100vh) rotate(360deg);
       }
     }
+
+    @media (max-width: 600px) {
+      body {
+        padding: 10px;
+      }
+      h1 {
+        font-size: 1.5em;
+        padding-bottom: 20px;
+      }
+      #status {
+        width: 100%;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+      }
+      #status div {
+        width: 90%;
+        text-align: center;
+      }
+      #board-container {
+        padding: 8px;
+        border-width: 4px;
+      }
+      #board {
+        grid-template: repeat(9, 36px) / repeat(9, 36px);
+        gap: 2px;
+      }
+      .cell {
+        width: 36px;
+        height: 36px;
+        border-width: 1px;
+        border-radius: 4px;
+      }
+      button {
+        padding: 10px 20px;
+        font-size: 0.8em;
+      }
+    }
+
+    /* Easier flagging for touch devices */
+    .cell {
+      touch-action: manipulation;
+    }
+
+    .cell.flagged {
+      background: url('https://minecraft.wiki/images/EntitySprite_creeper.png') center/contain no-repeat;
+    }
+
+    .cell.flagged::after {
+      content: none;
+    }
   </style>
 </head>
 <body>
